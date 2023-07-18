@@ -183,7 +183,6 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 			pstatus_data->is_first_check = 0;
 			goto status_dead;
 		}
-	}
 /* Huaqin duchangguo modify for disabling esd check when panel is not connect before boot end*/
 
 	if (pdata->panel_info.panel_force_dead) {
