@@ -810,9 +810,6 @@ static u8 *sony_report_fixup(struct hid_device *hdev, u8 *rdesc,
 {
 	struct sony_sc *sc = hid_get_drvdata(hdev);
 
-	if (sc->quirks & (SINO_LITE_CONTROLLER | FUTUREMAX_DANCE_MAT))
-		return rdesc;
-
 	/*
 	 * Some Sony RF receivers wrongly declare the mouse pointer as a
 	 * a constant non-data variable.
@@ -1725,7 +1722,7 @@ static void sony_led_set_brightness(struct led_classdev *led,
 				    enum led_brightness value)
 {
 	struct device *dev = led->dev->parent;
-	struct hid_device *hdev = to_hid_device(dev);
+	struct hid_device *hdev = container_of(dev, struct hid_device, dev);
 	struct sony_sc *drv_data;
 
 	int n;
@@ -1767,7 +1764,7 @@ static void sony_led_set_brightness(struct led_classdev *led,
 static enum led_brightness sony_led_get_brightness(struct led_classdev *led)
 {
 	struct device *dev = led->dev->parent;
-	struct hid_device *hdev = to_hid_device(dev);
+	struct hid_device *hdev = container_of(dev, struct hid_device, dev);
 	struct sony_sc *drv_data;
 
 	int n;
@@ -1790,7 +1787,7 @@ static int sony_led_blink_set(struct led_classdev *led, unsigned long *delay_on,
 				unsigned long *delay_off)
 {
 	struct device *dev = led->dev->parent;
-	struct hid_device *hdev = to_hid_device(dev);
+	struct hid_device *hdev = container_of(dev, struct hid_device, dev);
 	struct sony_sc *drv_data = hid_get_drvdata(hdev);
 	int n;
 	u8 new_on, new_off;
@@ -2773,70 +2770,6 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (!(hdev->claimed & HID_CLAIMED_INPUT)) {
 		hid_err(hdev, "failed to claim input\n");
 		hid_hw_stop(hdev);
-		return -ENODEV;
-	}
-
-	return ret;
-}
-
-static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
-{
-	int ret;
-	unsigned long quirks = id->driver_data;
-	struct sony_sc *sc;
-	unsigned int connect_mask = HID_CONNECT_DEFAULT;
-
-	if (!strcmp(hdev->name, "FutureMax Dance Mat"))
-		quirks |= FUTUREMAX_DANCE_MAT;
-
-	sc = devm_kzalloc(&hdev->dev, sizeof(*sc), GFP_KERNEL);
-	if (sc == NULL) {
-		hid_err(hdev, "can't alloc sony descriptor\n");
-		return -ENOMEM;
-	}
-
-	spin_lock_init(&sc->lock);
-
-	sc->quirks = quirks;
-	hid_set_drvdata(hdev, sc);
-	sc->hdev = hdev;
-
-	ret = hid_parse(hdev);
-	if (ret) {
-		hid_err(hdev, "parse failed\n");
-		return ret;
-	}
-
-	if (sc->quirks & VAIO_RDESC_CONSTANT)
-		connect_mask |= HID_CONNECT_HIDDEV_FORCE;
-	else if (sc->quirks & SIXAXIS_CONTROLLER)
-		connect_mask |= HID_CONNECT_HIDDEV_FORCE;
-
-	/* Patch the hw version on DS3/4 compatible devices, so applications can
-	 * distinguish between the default HID mappings and the mappings defined
-	 * by the Linux game controller spec. This is important for the SDL2
-	 * library, which has a game controller database, which uses device ids
-	 * in combination with version as a key.
-	 */
-	if (sc->quirks & (SIXAXIS_CONTROLLER | DUALSHOCK4_CONTROLLER))
-		hdev->version |= 0x8000;
-
-	ret = hid_hw_start(hdev, connect_mask);
-	if (ret) {
-		hid_err(hdev, "hw start failed\n");
-		return ret;
-	}
-
-	/* sony_input_configured can fail, but this doesn't result
-	 * in hid_hw_start failures (intended). Check whether
-	 * the HID layer claimed the device else fail.
-	 * We don't know the actual reason for the failure, most
-	 * likely it is due to EEXIST in case of double connection
-	 * of USB and Bluetooth, but could have been due to ENOMEM
-	 * or other reasons as well.
-	 */
-	if (!(hdev->claimed & HID_CLAIMED_INPUT)) {
-		hid_err(hdev, "failed to claim input\n");
 		return -ENODEV;
 	}
 
